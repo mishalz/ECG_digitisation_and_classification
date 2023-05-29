@@ -9,49 +9,59 @@ from deskew import determine_skew
 from matplotlib import pyplot as plt
 import uuid
 
-output_jpeg_path = "/content/drive/MyDrive/ECG images/ECG1.jpg"
-path = '/content/drive/MyDrive/ECG images'
+#output_jpeg_path = "/content/drive/MyDrive/ECG images/ECG1.jpg"
+#path = '/content/drive/MyDrive/ECG images'
 filename = 'Pre-processed Image'
-pdf_image = '/content/drive/MyDrive/ECG images/ECG7.pdf'
+#pdf_image = '/content/drive/MyDrive/ECG images/ECG7.pdf'
 
-def convert_pdf_to_jpeg(input_pdf_path, output_jpeg_path):
+#def convert_pdf_to_jpeg(input_jpeg_path , output_jpeg_path):
     # Convert the PDF to a list of JPEG images
-    images = convert_from_path(input_pdf_path)
-
+    #images = convert_from_path(input_jpeg_path)
     # Save the first image as a JPEG file
-    images[0].save(output_jpeg_path, 'JPEG')
+    #images[0].save(output_jpeg_path, 'JPEG')
 
 
-def rotate(
-        image: np.ndarray, angle: float, background: Union[int, Tuple[int, int, int]]
-) -> np.ndarray:
-    old_width, old_height = image.shape[:2]
-    angle_radian = math.radians(angle)
-    width = abs(np.sin(angle_radian) * old_height) + abs(np.cos(angle_radian) * old_width)
-    height = abs(np.sin(angle_radian) * old_width) + abs(np.cos(angle_radian) * old_height)
+def deskew_image(image, ang):
+  # Apply Canny edge detection
+    edges = cv2.Canny(image, 50, 150, apertureSize=3)
 
-    image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    rot_mat[1, 2] += (width - old_width) / 2
-    rot_mat[0, 2] += (height - old_height) / 2
-    return cv2.warpAffine(image, rot_mat, (int(round(height)), int(round(width))), borderValue=background)
+  # Find contours in the image
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+  # Find the largest contour
+    largest_contour = max(contours, key=cv2.contourArea)
+
+  # Calculate the rotated bounding rectangle
+    rect = cv2.minAreaRect(largest_contour)
+    angle = rect[2]
+
+  # Rotate the image to deskew
+    (h, w) = image.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, ang, 1.0)
+    deskewed_image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+  
+    return deskewed_image
 
 
-def image_preprocessing(pdf_file):
+def image_preprocessing(image):
+    image = np.array(image)
     # function to convert pdf file to jpeg
-
+    
     # Path to the input PDF file
-    input_pdf_path = pdf_file
+    #input_pdf_path = pdf_file
 
     # Convert PDF to JPEG and save it
-    convert_pdf_to_jpeg(input_pdf_path, output_jpeg_path)
+    #convert_pdf_to_jpeg(input_pdf_path, output_jpeg_path)
 
     # reads the jpeg file
-    image = cv2.imread(output_jpeg_path)
+    #image = cv2.imread(image)
 
     # deskew function
-    angle = determine_skew(image)
-    rotated_img = rotate(image, angle, (0, 0, 0))
+     # Deskew the image
+    #angle = determine_skew(image)
+    rotated_img = deskew_image(image, 0.2) #for ecg 54 angle = 1.5 #for ecg 7 angle=0.2
+    
 
     # split the image into three channels
     red, green, blue = cv2.split(rotated_img)
@@ -72,4 +82,5 @@ def image_preprocessing(pdf_file):
     closed_image = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
 
     # return the pre processed image
+    
     return closed_image
